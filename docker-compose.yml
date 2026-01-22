@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres
+    container_name: starsoft-db
+    volumes:
+      - ./scripts-sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: always
+    environment:
+      - POSTGRES_USER=patrick
+      - POSTGRES_PASSWORD=starsoftpatrick
+      - POSTGRES_DB=starsoft
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U patrick -d starsoft']
+      interval: 1s
+      timeout: 10s
+      retries: 10
+    ports: ['5432:5432']
+
+  redis:
+    image: redis:alpine
+    restart: always
+    ports:
+      - '6379:6379'
+  node:
+    container_name: 'starsoft-challenge'
+    hostname: 'host-starsoft-challenge'
+    build: .
+    entrypoint: sh -c "npm install && npm run start:dev"
+    volumes: [.:/home/node/app]
+    ports: ['3000:3000']
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq-my
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    environment:
+      RABBITMQ_DEFAULT_USER: patrick
+      RABBITMQ_DEFAULT_PASS: starsoftpatrick
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+volumes:
+  rabbitmq_data:
