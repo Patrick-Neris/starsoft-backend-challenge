@@ -72,8 +72,10 @@ INSERT INTO assentos (sessao_id, disponiveis, indisponiveis) VALUES
 -- TABELA DE VENDAS
 -- =====================================================
 
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE IF NOT EXISTS vendas (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     usuario VARCHAR(255) NOT NULL,
     sessao_id INTEGER NOT NULL,
     assentos INTEGER[] NOT NULL,
@@ -83,16 +85,16 @@ CREATE TABLE IF NOT EXISTS vendas (
         ON DELETE RESTRICT
 );
 
-INSERT INTO vendas (usuario, sessao_id, assentos) VALUES
-('Patrick Neris', 1, ARRAY[1,2,3]),
-('João Pedro',    1, ARRAY[10,11]),
-('Patrick Neris', 2, ARRAY[30]),
-('Lucas Almeida', 2, ARRAY[10]),
-('Mariana Costa', 2, ARRAY[21]),
-('Rafael Lima',   2, ARRAY[22,23]),
-('Ana Souza',     2, ARRAY[24]),
-('Bruno Rocha',   2, ARRAY[25,26]),
-('Camila Torres', 3, ARRAY[41]),
-('Diego Martins', 3, ARRAY[42]),
-('Fernanda Pires',3, ARRAY[43]);
+INSERT INTO vendas (id, usuario, sessao_id, assentos) VALUES
+(uuid_generate_v4(), 'Patrick Neris', 1, ARRAY[1,2,3]),
+(uuid_generate_v4(), 'João Pedro',    1, ARRAY[10,11]),
+(uuid_generate_v4(), 'Patrick Neris', 2, ARRAY[30]),
+(uuid_generate_v4(), 'Lucas Almeida', 2, ARRAY[10]),
+(uuid_generate_v4(), 'Mariana Costa', 2, ARRAY[21]),
+(uuid_generate_v4(), 'Rafael Lima',   2, ARRAY[22,23]),
+(uuid_generate_v4(), 'Ana Souza',     2, ARRAY[24]),
+(uuid_generate_v4(), 'Bruno Rocha',   2, ARRAY[25,26]),
+(uuid_generate_v4(), 'Camila Torres', 3, ARRAY[41]),
+(uuid_generate_v4(), 'Diego Martins', 3, ARRAY[42]),
+(uuid_generate_v4(), 'Fernanda Pires',3, ARRAY[43]);
 
