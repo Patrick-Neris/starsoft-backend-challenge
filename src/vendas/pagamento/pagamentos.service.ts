@@ -1,4 +1,9 @@
-import { ConflictException, Inject, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Channel } from 'amqplib';
 import Redis from 'ioredis';
@@ -9,6 +14,8 @@ import { DataSource, Repository } from 'typeorm';
 import { PagamentoDto } from './pagamentos.dto';
 
 export class PagamentoService {
+  private readonly logger = new Logger(PagamentoService.name);
+
   constructor(
     @InjectRepository(Venda)
     private readonly vendaRepository: Repository<Venda>,
@@ -32,6 +39,9 @@ export class PagamentoService {
     const reservaRaw = await this.redis.get(reservasKey);
 
     if (!reservaRaw) {
+      this.logger.warn(
+        `Reserva expirada ou inexistente | reserva=${dto.reservaId}`,
+      );
       throw new ConflictException('Reserva expirada ou inexistene');
     }
 
@@ -48,6 +58,9 @@ export class PagamentoService {
       });
 
       if (!assento) {
+        this.logger.error(
+          `Assentos não encontrados | reserva=${dto.reservaId}`,
+        );
         throw new NotFoundException('Assentos não encontrados');
       }
 
@@ -56,6 +69,7 @@ export class PagamentoService {
       );
 
       if (indisponiveis.length > 0) {
+        this.logger.error(`Assentos indisponíveis | reserva=${dto.reservaId}`);
         throw new ConflictException(
           `Assentos indisponíveis: ${indisponiveis.join(', ')}`,
         );
@@ -94,6 +108,8 @@ export class PagamentoService {
         }),
       ),
     );
+
+    this.logger.log(`Reserva convertida em venda | reserva=${dto.reservaId}`);
 
     return {
       status: 'VENDA_CONFIRMADA',

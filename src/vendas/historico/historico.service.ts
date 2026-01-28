@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import Redis from 'ioredis';
 import { Venda } from 'src/entities/venda.entity';
@@ -7,6 +12,8 @@ import { ConsultaHistoricoDto } from './historico.dto';
 
 @Injectable()
 export class HistoricoService {
+  private readonly logger = new Logger(HistoricoService.name);
+
   constructor(
     @InjectRepository(Venda)
     private readonly vendaRepository: Repository<Venda>,
@@ -24,6 +31,7 @@ export class HistoricoService {
     );
 
     if (filtrosInformados.length === 0) {
+      this.logger.warn(`Nenhum filtro válido informado.`);
       throw new BadRequestException(
         'Erro ao tentar consultar histórico de vendas, informe ao menos um filtro válido: id, usuario.',
       );
@@ -33,13 +41,11 @@ export class HistoricoService {
 
     const cache = await this.redis.get(cacheKey);
     if (cache) {
-      console.log('Cache, key: ', cacheKey);
       return {
         data: JSON.parse(cache),
       };
     }
 
-    console.log('Banco, key: ', cacheKey);
     const query = this.vendaRepository
       .createQueryBuilder('v')
       .select(['v.id', 'v.usuario', 'v.sessao_id', 'v.assentos']);
@@ -57,6 +63,8 @@ export class HistoricoService {
     const resultado = await query.getRawMany();
 
     await this.redis.set(cacheKey, JSON.stringify(resultado), 'EX', 60);
+
+    this.logger.log(`Historico salvo no cache. | chave=${cacheKey}`);
 
     return {
       data: resultado,

@@ -3,16 +3,23 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
-import { Injectable, Inject, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { Sessao } from '../../entities/sessao.entity';
+import { Sessao } from 'src/entities/sessao.entity';
 import { ConsultaSessaoDto } from './consulta.dto';
 import Redis from 'ioredis';
 
 @Injectable()
 export class ConsultaService {
+  private readonly logger = new Logger(ConsultaService.name);
+
   constructor(
     @InjectRepository(Sessao)
     private readonly sessaoRepository: Repository<Sessao>,
@@ -30,6 +37,7 @@ export class ConsultaService {
     );
 
     if (filtrosInformados.length === 0) {
+      this.logger.warn(`Nenhum filtro válido informado.`);
       throw new BadRequestException(
         'Informe ao menos um filtro válido: id, filme, data ou horario',
       );
@@ -38,13 +46,11 @@ export class ConsultaService {
 
     const cache = await this.redis.get(cacheKey);
     if (cache) {
-      console.log('Fonte Cache', cacheKey);
       return {
         data: JSON.parse(cache),
       };
     }
 
-    console.log('Fonte Banco', cacheKey);
     const query = this.sessaoRepository
       .createQueryBuilder('s')
       .innerJoin('assentos', 'a', 'a.sessao_id = s.id')
@@ -99,6 +105,10 @@ export class ConsultaService {
     }
 
     await this.redis.set(cacheKey, JSON.stringify(resultado), 'EX', 60);
+
+    this.logger.log(
+      `Consulta feita com sucesso. | filtros=${filtrosInformados.join(', ')}`,
+    );
 
     return {
       data: resultado,

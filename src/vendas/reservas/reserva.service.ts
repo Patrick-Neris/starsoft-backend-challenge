@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import Redis from 'ioredis';
 import { Assento } from 'src/entities/assento.entity';
@@ -10,6 +10,8 @@ import { CacheUtilsService } from 'src/utils/cache.util';
 
 @Injectable()
 export class ReservasService {
+  private readonly logger = new Logger(ReservasService.name);
+
   constructor(
     @InjectRepository(Assento)
     private readonly assentoRepository: Repository<Assento>,
@@ -28,7 +30,10 @@ export class ReservasService {
     const lock = await this.redis.set(lockKey, 'locked', 'EX', 5, 'NX');
 
     if (!lock) {
-      throw new ConflictException('Assentos Ocupados.');
+      this.logger.warn(
+        `Assentos reservados | sessão=${dto.sessaoId} | usuário=${dto.usuario} | assentos=${dto.assentos.join(', ')}`,
+      );
+      throw new ConflictException('Assentos Reservados.');
     }
 
     try {
@@ -37,6 +42,7 @@ export class ReservasService {
       });
 
       if (!assento) {
+        this.logger.warn(`Sessão não encontrada | sessao=${dto.sessaoId}`);
         throw new ConflictException('Sessão não encontrada.');
       }
 
@@ -55,6 +61,9 @@ export class ReservasService {
       );
 
       if (indisponiveis.length > 0) {
+        this.logger.warn(
+          `Assentos indisponíveis | sessão=${dto.sessaoId} | usuário=${dto.usuario} | assentos=${dto.assentos.join(', ')}`,
+        );
         throw new ConflictException(
           `Assentos indisponíveis: ${indisponiveis.join(', ')}`,
         );
@@ -98,7 +107,7 @@ export class ReservasService {
         ),
       );
 
-      console.log('Reserva criada: ', reserva.reservaId);
+      this.logger.log(`Reserva criada com sucesso | id=${reserva.reservaId}`);
 
       await this.cacheUtils.invalidateSessaoCache();
 

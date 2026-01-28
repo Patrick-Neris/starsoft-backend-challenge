@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { VendasModule } from './vendas/vendas.module';
 import { SessoesModule } from './sessoes/sessoes.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -25,7 +23,7 @@ import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
       synchronize: false,
     }),
   ],
-  controllers: [AppController],
-  providers: [AppService, RedisProvider],
+  controllers: [],
+  providers: [RedisProvider],
 })
 export class AppModule {}

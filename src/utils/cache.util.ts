@@ -1,8 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
 
 @Injectable()
 export class CacheUtilsService {
+  private readonly logger = new Logger(CacheUtilsService.name);
+
   constructor(
     @Inject('REDIS_CLIENT')
     private readonly redis: Redis,
@@ -16,6 +18,6 @@ export class CacheUtilsService {
     }
 
     await this.redis.del(...keys);
-    console.log('Cache de sessões invalidado:', keys);
+    this.logger.log(`Cache de sessões invalidado. | chaves=${keys.join(', ')}`);
   }
 }
