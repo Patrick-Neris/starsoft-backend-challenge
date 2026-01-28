@@ -7,9 +7,14 @@ import { SessoesController } from './criar-sessao/criar-sessao.controller';
 import { Assento } from '../entities/assento.entity';
 import { ConsultaController } from './consulta/consulta.controller';
 import { RedisModule } from 'src/redis/redis.module';
+import { UtilsModule } from 'src/utils/utils.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Sessao, Assento]), RedisModule],
+  imports: [
+    TypeOrmModule.forFeature([Sessao, Assento]),
+    RedisModule,
+    UtilsModule,
+  ],
   providers: [ConsultaService, CriarSessaoService],
   controllers: [ConsultaController, SessoesController],
 })

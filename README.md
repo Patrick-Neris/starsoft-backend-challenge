@@ -1,205 +1,161 @@
 # Teste para Desenvolvedor(a) Back-End Node.js/NestJS - Sistemas Distribuídos
 
-## Introdução
+## Visão Geral
 
-Bem-vindo(a) ao processo seletivo para a posição de **Desenvolvedor(a) Back-End** em nossa equipe! Este teste tem como objetivo avaliar suas habilidades técnicas em sistemas distribuídos, alta concorrência, e arquiteturas escaláveis utilizando Node.js e NestJS.
+Esta é uma solução para um sistema de venda de ingressos para uma rede de cinemas. Utilizando Docker e NestJS para lidar com os desafios dessa solução, este sistema permite a criação e consulta de sessões além da reserva, confirmação de pagamento e consulta de histórico de vendas.
 
-## Instruções
+## Tecnologias
 
-- Faça um **fork** deste repositório para o seu GitHub pessoal.
-- Desenvolva as soluções solicitadas abaixo, seguindo as **melhores práticas de desenvolvimento**.
-- Após a conclusão, envie o link do seu repositório para avaliação.
-- Sinta-se à vontade para adicionar qualquer documentação ou comentários que julgar necessário.
+- **PostgreSQL**
+  Escolhido pela facilidade de implementação e manutenção.
 
-## Desafio
+- **RabbitMQ**
+  Escolhido por não precisar salvar as mensagens após o consumo.
 
-### Contexto
+- **Redis**
+  Escolhido pela familiaridade com a tecnologia, já tive experiência em utilizar ele, e para utilizar o sistema de lock para lidar com a Race Condition.
 
-Você foi designado para desenvolver o sistema de venda de ingressos para uma **rede de cinemas**. O sistema precisa lidar com **concorrência**: múltiplos usuários tentando comprar os mesmos assentos simultaneamente.
+## Como Executar
 
-### O Problema Real
+- **Pré-Requisitos**
+  Somente ter o Docker instalado em sua máquina, o sistema está configurado para subir com um único comando "docker compose up"
 
-Imagine a seguinte situação:
+- **Comandos**
+  Basta rodar "docker compose up" que o sistema sobe e já popula as tabelas com alguns dados fakes para facilitar os testes, também tirei o arquivo .env do gitignore para facilitar os testes, essa não é a melhor prática mas todos logins e senhas são genéricos somente para teste.
+  Para os testes unitários é necessário instalar as bibliotecas node com "npm i" e depois é só rodar o comando "npm run test", para ter a cobertura dos testes basta rodar "npm run test:cov". Após subir o ambiente basta seguir a lista de APIs com exemplos de uso para testar a solução.
 
-- Uma sala de cinema com **2 assentos disponíveis**
-- **10 usuários** tentando comprar no mesmo momento
-- **Múltiplas instâncias** da aplicação rodando simultaneamente
-- Necessidade de garantir que **nenhum assento seja vendido duas vezes**
-- **Reservas temporárias** enquanto o pagamento é processado (30 segundos)
-- **Cancelamento automático** se o pagamento não for confirmado
+- **Estratégias**
+  Para resolver a race condition utilizei o sistema de lock do Redis, travando a reserva por sessão, sei que esta solução travaria muito as vendas caso muitas pessoas desejassem comprar assentos para a mesma sessão e essa é uma melhoria a ser feita futuramente. Ao utilizar o cache do Redis eu também garanto que todas as instâncias estão utilizando consultando a mesma fonte de informação, então caso uma dê o lock na sessão as outras não reservarão os mesmos assentos.
 
-### Requisitos Obrigatórios
+## Endpoints
 
-#### 1. **Configuração do Ambiente**
+São 5 no total, segue a lista deles:
 
-Configure um ambiente de desenvolvimento utilizando **Docker** e **Docker Compose**, incluindo:
+- **/sessoes/consulta GET**
+  Endpoint para consulta de informações de sessões, podendo pesquisar por id da sessão ou nome do filme.
+  Parâmetros:
+  id? number
+  filme? string
 
-- Aplicação Node.js com **NestJS**
-- **Banco de dados relacional** (PostgreSQL, MySQL, etc.)
-- **Sistema de mensageria** (Kafka, RabbitMQ, etc.)
-- **Banco de dados distribuído** para cache (Redis, Memcached, etc.)
-- A aplicação deve ser iniciada com um único comando (`docker-compose up`)
+  retorno:
+  {
+  "id": number,
+  "filme": string,
+  "data": date,
+  "horario": time,
+  "sala": number,
+  "preco": string,
+  "assentosdisponiveis": number[]
+  }
 
-#### 2. **API RESTful - Gestão de Ingressos**
+  Apesar de ambos parâmetros serem opcionais, ao pesquisar sem nenhuma delas o retorno é:
+  {
+  "message": "Informe ao menos um filtro válido: id, filme, data ou horario",
+  "error": "Bad Request",
+  "statusCode": 400
+  }
 
-Implemente uma API RESTful com as seguintes operações:
+- **/sessoes/criar-sessao POST**
+  Endpoint para criar sessões.
+  Parâmetros:
+  {
+  "filme": string,
+  "data": date,
+  "horario": time,
+  "sala": number,
+  "preco": float,
+  "assentos": number
+  }
 
-**2.1. Gestão de Sessões**
+  Retorno:
+  {
+  "id": number,
+  "filme": string,
+  "data": date,
+  "horario": time,
+  "sala": number,
+  "preco": float,
+  "assentos": number
+  }
 
-- Criar sessões de cinema (filme, horário, sala)
-- Definir assentos disponíveis por sessão (Mínimo 16 assentos)
-- Definir preço do ingresso
+- **/vendas/reservar POST**
+  Endpoint para reserva de assentos.
+  Parâmetros:
+  {
+  "sessaoId": number,
+  "assentos": number[],
+  "usuario": string
+  }
 
-**2.2. Reserva de Assentos**
+  Retorno:
+  {
+  "reservaId": uuid,
+  "sessaoId": number,
+  "assentos": number[],
+  "usuario": string,
+  "expiresAt": timestamp
+  }
 
-- Endpoint para reservar assento(s)
-- Reserva tem validade de 30 segundos
-- Retornar ID da reserva e timestamp de expiração
+- **/vendas/pagamento POST**
+  Endpoint para confirmar pagamento e convertar reserva em venda.
+  Parâmetro:
+  {
+  "reservaId": uuid
+  }
 
-**2.3. Confirmação de Pagamento**
+  Retorno:
+  {
+  "status": "VENDA_CONFIRMADA",
+  "reservaId": uuid
+  }
 
-- Endpoint para confirmar pagamento de uma reserva, e assim converter reserva em venda definitiva
-- Publicar evento de venda confirmada
+- **/vendas/historico GET**
+  Endpoint para pesquisa de histórico de vendas.
+  Parâmetros:
+  sessaoId?: number,
+  usuario?: string
 
-**2.4. Consultas**
+  Retorno:
+  "data": [
+  {
+  "v_id": uuid,
+  "v_usuario": string,
+  "v_assentos": number[],
+  "sessao_id": number
+  },
+  ]
 
-- Buscar disponibilidade de assentos por sessão (tempo real)
-- Histórico de compras por usuário
+## Limitações e Melhorias
 
-#### 3. **Processamento Assíncrono com Mensageria**
+Há muitas limitações e melhorias a se fazer, então vou listar elas e usar elas como um TODO para continuar trabalhando nesse projeto.
 
-- Usar **sistema de mensageria** para comunicação assíncrona entre componentes
-- Publicar eventos quando: reserva criada, pagamento confirmado, reserva expirada, assento liberado
-- Consumir e processar esses eventos de forma confiável
+- **Arquitetura**
+  O ideal seria separar em diversos workers para cada um ter sua responsabilidade e facilitar a administração de responsabilidades entre eles, por exemplo ter um só para validações e outro só para operações de escrita no banco de dados, dessa forma fica mais fácil de controlar quantos workers teriam de cada um deles na nuvem para ter mais processamento dinamicamente.
 
-#### 4. **Logging**
+- **Mensageria**
+  Junto com a modularização da solução vem o sistema de mensageria para conversas entre os diferentes módulos da solução.
 
-- Implementar logging estruturado (níveis: DEBUG, INFO, WARN, ERROR)
+- **Logs**
+  Os logs devem ter mais informações para ter um rastreio melhor de cada transação, não tenho um transactionId para rastrear toda a operação e facilitar possíveis debugs no sistema.
 
-#### 5. **Clean Code e Boas Práticas**
+- **Cache**
+  O sistema de cache precisa de uma melhoria no seu design, da forma que está é necessário fazer muitos resets na memória que não deveriam ser necessários.
 
-- Aplicar princípios SOLID
-- Separação clara de responsabilidades (Controllers, Services, Repositories/Use Cases)
-- Tratamento adequado de erros
-- Configurar ESLint e Prettier
-- Commits organizados e descritivos
+- **Tipagem do Redis e RabbitMQ**
+  Os dois estão com tipos genéricos e gerando avisos no typescript, gastei um bom tempo tentando resolver mas não consegui, ainda.
 
-### Requisitos Técnicos Específicos
+- **Testes e2e**
+  Necessário fazer testes e2e automatizados, apesar de conseguir testar tudo na mão chamando as APIs, é necessário um teste automático testandoo fluxo todo para garantir que futuras alterações no código não quebrem o fluxo.
 
-#### Estrutura de Banco de Dados Sugerida
+- **Testes com múltiplas instâncias**
+  Assim como os testes e2e é necessário automatizar esse tipo de teste para garantir que a concorrência esteja resolvida.
 
-Você deve projetar um schema que suporte:
+- **Tratamento de erros**
+  Aumentar o tratamento de erros pegando os erros especifícios possíveis e tratá-los ao invés de jogar todos como genéricos.
 
-- **Sessões**: informações da sessão (filme, horário, sala)
-- **Assentos**: assentos disponíveis por sessão
-- **Reservas**: reservas temporárias com expiração
-- **Vendas**: vendas confirmadas
+- **Tipagem e interface de dados internos**
+  Necessário forçar a tipagem em tudo para padronização e evitar erros no código.
 
-#### Fluxo de Reserva Esperado
+## Considerações Finais
 
-```
-1. Cliente solicita uma reserva
-2. Sistema verifica disponibilidade com proteção contra concorrência
-3. Cria reserva temporária (válida por 30 segundos)
-4. Publica evento no sistema de mensageria
-5. Retorna ID da reserva
-
-6. Cliente confirma o pagamento
-7. Sistema valida reserva (ainda não expirou?)
-8. Converte reserva em venda definitiva
-9. Publica evento de confirmação no sistema de mensageria
-```
-
-#### Edge Cases a Considerar
-
-1. **Race Condition**: 2 usuários clicam no último assento disponível no mesmo milissegundo
-2. **Deadlock**: Usuário A reserva assentos 1 e 3, Usuário B reserva assentos 3 e 1, ambos tentam reservar o assento do outro
-3. **Idempotência**: Cliente reenvia mesma requisição por timeout
-4. **Expiração**: Reservas não confirmadas devem liberar o assento automaticamente após 30 segundos
-
-### Diferenciais (Opcional - Pontos Extra)
-
-Os itens abaixo são opcionais e darão pontos extras na avaliação:
-
-- **Documentação da API**: Swagger/OpenAPI acessível em `/api-docs`
-- **Testes de Unidade**: Cobertura de 60-70%, mockar dependências externas
-- **Dead Letter Queue (DLQ)**: Mensagens que falharam vão para fila separada
-- **Retry Inteligente**: Sistema de retry com backoff exponencial
-- **Processamento em Batch**: Processar mensagens em lotes
-- **Testes de Integração/Concorrência**: Simular múltiplos usuários simultaneamente
-- **Rate Limiting**: Limitar requisições por IP/usuário
-
-### Critérios de Avaliação
-
-Os seguintes aspectos serão considerados (em ordem de importância):
-
-1. **Funcionalidade Correta**: O sistema garante que nenhum assento é vendido duas vezes?
-2. **Controle de Concorrência**: Coordenação distribuída implementada corretamente?
-3. **Qualidade de Código**: Clean code, SOLID, padrões de projeto?
-4. **Documentação**: README claro e código bem estruturado?
-
-### Entrega
-
-#### Repositório Git
-
-- Código disponível em repositório público (GitHub/GitLab)
-- Histórico de commits bem organizado e descritivo
-- Branch `main` deve ser a versão final
-
-#### README.md Obrigatório
-
-Deve conter:
-
-1. **Visão Geral**: Breve descrição da solução
-2. **Tecnologias Escolhidas**: Qual banco de dados, sistema de mensageria e cache você escolheu e por quê?
-3. **Como Executar**:
-   - Pré-requisitos
-   - Comandos para subir o ambiente
-   - Como popular dados iniciais
-   - Como executar testes (se houver)
-4. **Estratégias Implementadas**:
-   - Como você resolveu race conditions?
-   - Como garantiu coordenação entre múltiplas instâncias?
-   - Como preveniu deadlocks?
-5. **Endpoints da API**: Lista com exemplos de uso
-6. **Decisões Técnicas**: Justifique escolhas importantes de design
-7. **Limitações Conhecidas**: O que ficou faltando? Por quê?
-8. **Melhorias Futuras**: O que você faria com mais tempo?
-
-### Exemplo de Fluxo para Testar
-
-Para facilitar a avaliação, inclua instruções ou script mostrando:
-
-```
-1. Criar sessão "Filme X - 19:00"
-2. Criar sala com no mínimo 16 assentos, a R$ 25,00 cada
-3. Simular
- 3.1. 2 usuários tentando reservar o mesmo assento simultaneamente
-4. Verificar quantidade de reservas geradas
-5. Comprovar o funcionamento do fluxo de pagamento do assento
-```
-
-### Prazo
-
-- **Prazo sugerido**: 5 dias corridos a partir do recebimento do desafio
-
-### Dúvidas e Suporte
-
-- Abra uma **Issue** neste repositório caso tenha dúvidas sobre requisitos
-- Não fornecemos suporte para problemas de configuração de ambiente
-- Assuma premissas razoáveis quando informações estiverem ambíguas e documente-as
-
----
-
-## Observações Finais
-
-Este é um desafio que reflete problemas reais enfrentados em produção. **Não esperamos que você implemente 100% dos requisitos**, especialmente os diferenciais. Priorize:
-
-1. ✅ Garantir que nenhum assento seja vendido duas vezes
-2. ✅ Sistema de mensageria confiável
-3. ✅ Código limpo e bem estruturado
-4. ✅ Documentação clara
-
-**Qualidade > Quantidade**. É melhor implementar poucas funcionalidades muito bem feitas do que muitas de forma superficial.
-
-**Boa sorte! Estamos ansiosos para conhecer sua solução e discutir suas decisões técnicas na entrevista.**
+Infelizmente não consegui codar todos os dias por problemas pessoais, mas foi muito divertido e desafiador fazer esse desafio, pretendo continuar codando ele pois acredito que é um excelente portfólio e caso de estudo, aprendi e reaprendi muita coisa nessa semana e com certeza com mais tempo posso fazer muitas melhorias nesse projeto, tentei ser o mais honesto possível nas limitações e melhorias, mas com certeza tem muitas mais melhorias a se fazer, obrigado pelo desafio e espero que goste da minha solução ou veja potencial nela e especialmente em mim.

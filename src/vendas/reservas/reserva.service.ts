@@ -31,7 +31,7 @@ export class ReservasService {
 
     if (!lock) {
       this.logger.warn(
-        `Assentos reservados | sessão=${dto.sessaoId} | usuário=${dto.usuario} | assentos=${dto.assentos.join(', ')}`,
+        `Assentos já reservados. | sessão=${dto.sessaoId} | usuário=${dto.usuario} | assentos=${dto.assentos.join(', ')}`,
       );
       throw new ConflictException('Assentos Reservados.');
     }
